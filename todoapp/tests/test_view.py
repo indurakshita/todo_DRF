@@ -9,14 +9,14 @@ from todoapp.models import Task
 @pytest.fixture
 @pytest.mark.django_db
 def test_user():
-    return User.objects.create_user(username='testuser', password='testpassword')
+    return User.objects.create_user(username='chandru', password='chan@1234')
 
 
 @pytest.mark.django_db
 def test_signup_view():
     client = APIClient()
     url = reverse('signup')
-    data = {'username': 'testuser', 'password': 'testpassword'}
+    data = {'username': 'chandru', 'password': 'chan@1234'}
     response = client.post(url, data, format='json')
     assert response.status_code == status.HTTP_200_OK
 
@@ -27,7 +27,7 @@ def test_signup_view_invalid_data():
     client = APIClient()
     
     url = reverse('signup')
-    invalid_data = {'username': 'testuser', 'password': 'short'}
+    invalid_data = {'username': 'chandru', 'password': 'chan'}
 
     response = client.post(url, invalid_data, format='json')
     print(response)
@@ -36,10 +36,14 @@ def test_signup_view_invalid_data():
 def test_custom_login_view_authenticated_user(test_user):
     client = APIClient()
     url = reverse('login')
-    data = {'username': 'testuser', 'password': 'testpassword'}
+
+    data = {
+        'username': test_user.username,
+        'password': "chan@1234"
+    }
 
     response = client.post(url, data, format='json')
-    print(response)
+    
     assert response.status_code == status.HTTP_302_FOUND
   
 
