@@ -4,10 +4,11 @@ from todoapp import views
 
 
 router = DefaultRouter()
-router.register('', views.TodoViewset, basename='task')
+router.register(r'todo', views.TodoViewset, basename='task')
 
+router.register(r'subscriptions', views.SubscriptionViewSet, basename='subscription')
 
 urlpatterns = [
    
-    path('todo/', include(router.urls)),
+    path('api/', include(router.urls)),
 ]

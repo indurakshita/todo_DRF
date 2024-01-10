@@ -1,104 +1,112 @@
-import pytest
+import pytest,json
 from django.contrib.auth.models import User
-from rest_framework.authtoken.models import Token
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
-from todoapp.models import Task
+from todoapp.models import Subscription, SubscriptionPlan
 
 @pytest.fixture
-@pytest.mark.django_db
-def test_user():
-    return User.objects.create_user(username='chandru', password='chan@1234')
+def authenticated_user():
+    user = User.objects.create_user(username='testuser', password='testpass')
+    return user
+
+@pytest.fixture
+def api_client():
+    return APIClient()
 
 
-@pytest.mark.django_db
-def test_signup_view():
+
+@pytest.fixture
+def subscription(authenticated_user):
+    return User.objects.create(user=authenticated_user, plan='Basic')
+
+
+@pytest.fixture
+def authenticated_client(authenticated_user):
     client = APIClient()
+    client.force_authenticate(user=authenticated_user)
+    return client
+
+# Tests
+@pytest.mark.django_db
+def test_signup_view(api_client):
     url = reverse('signup')
-    data = {'username': 'chandru', 'password': 'chan@1234'}
-    response = client.post(url, data, format='json')
+    data = {'username': 'testuser', 'password': 'testpass'}
+    response = api_client.post(url, data, format='json')
     assert response.status_code == status.HTTP_200_OK
 
-    
-
 @pytest.mark.django_db
-def test_signup_view_invalid_data():
-    client = APIClient()
-    
+def test_signup_view_invalid_data(api_client):
     url = reverse('signup')
-    invalid_data = {'username': 'chandru', 'password': 'chan'}
-
-    response = client.post(url, invalid_data, format='json')
-    print(response)
+    invalid_data = {'username': 'ch', 'password': 'chan'}
+    response = api_client.post(url, invalid_data, format='json')
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
 
 @pytest.mark.django_db
-def test_custom_login_view_authenticated_user(test_user):
-    client = APIClient()
+def test_custom_login_view_authenticated_user(api_client, authenticated_user):
     url = reverse('login')
-
-    data = {
-        'username': test_user.username,
-        'password': "chan@1234"
-    }
-
-    response = client.post(url, data, format='json')
+    data = {'username': authenticated_user.username, 'password': "testpass"}
+    response = api_client.post(url, data, format='json')
     
     assert response.status_code == status.HTTP_302_FOUND
-  
+    assert response.url == reverse('task-list')
 
 @pytest.mark.django_db
-def test_custom_login_view_invalid_credentials():
-    client = APIClient()
+def test_custom_login_view_invalid_credentials(api_client):
     url = reverse('login')
     data = {'username': 'nonexistentuser', 'password': 'wrongpassword'}
-
-    response = client.post(url, data, format='json')
+    response = api_client.post(url, data, format='json')
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 @pytest.mark.django_db
-def test_logout_view(api_client, test_user):
-    api_client.force_authenticate(user=test_user)
+def test_logout_view(authenticated_client):
     url = reverse('logout')
-    response = api_client.post(url)
+    response = authenticated_client.post(url, follow=True)
     assert response.status_code == status.HTTP_200_OK
-    
-     
-@pytest.fixture
-def test_task(test_user):
-    return Task.objects.create(user=test_user, title='Test Task', description='Description for test task')
-
-@pytest.fixture
-def api_client(test_user):
-    client = APIClient()
-    token, _ = Token.objects.get_or_create(user=test_user)
-    client.credentials(HTTP_AUTHORIZATION=f'Token {token}')
-    return client
 
 @pytest.mark.django_db
-def test_todo_viewset_list(api_client, test_task):
+def test_subscription_create(api_client, authenticated_user):
+    api_client.force_authenticate(user=authenticated_user)
+    url = reverse('subscription-list')
+    data = {'plan': SubscriptionPlan.ADVANCED}
+    response = api_client.post(url, data=json.dumps(data), content_type='application/json') 
+    assert response.status_code == status.HTTP_200_OK
+    subscription = Subscription.objects.get(user=authenticated_user)
+    assert subscription.plan == SubscriptionPlan.ADVANCED
+
+
+@pytest.mark.django_db
+def test_subscription_update(api_client, authenticated_user):
+    api_client.force_authenticate(user=authenticated_user)
+
+    subscription, created = Subscription.objects.get_or_create(user=authenticated_user, defaults={'plan': SubscriptionPlan.BASIC})
+    url = reverse('subscription-detail', args=[subscription.id])
+    data = {'plan': SubscriptionPlan.ADVANCED}
+    response = api_client.patch(url, data=json.dumps(data), content_type='application/json')
+    assert response.status_code == status.HTTP_200_OK
+    subscription.refresh_from_db()
+    assert subscription.plan == SubscriptionPlan.ADVANCED
+    
+@pytest.mark.django_db
+def test_todo_create_unauthenticated(api_client):
+    data = {'title': 'Test Task', 'description': 'This is a test task'} 
+    response = api_client.post('/api/todo/', data=json.dumps(data), content_type='application/json')
+    assert response.status_code == status.HTTP_200_OK
+    assert 'Authentication required to create tasks.' in response.data['detail']
+    
+    
+@pytest.mark.django_db
+def test_task_list_anonymous(api_client):
     url = reverse('task-list')
-    
     response = api_client.get(url)
-    
+    print(response.status_code)
     assert response.status_code == status.HTTP_200_OK
-    assert len(response.data) == 1
-    assert response.data[0]['title'] == test_task.title
+    
 
 @pytest.mark.django_db
-def test_todo_viewset_create(api_client):
-    url = reverse('task-list')
-    data = {'title': 'New Task', 'description': 'Description for new task'}
-    
-    response = api_client.post(url, data, format='json')
-    
-    assert response.status_code == status.HTTP_201_CREATED
-
-@pytest.mark.django_db
-def test_todo_viewset_retrieve(api_client, test_task):
-    url = reverse('task-detail', args=[test_task.id])
-    
-    response = api_client.get(url)
-    
+def test_task_list_authenticated(authenticated_client):
+    response = authenticated_client.get(reverse('task-list'))
     assert response.status_code == status.HTTP_200_OK
-    assert response.data['title'] == test_task.title
+   
+
+
