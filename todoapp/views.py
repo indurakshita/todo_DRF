@@ -3,7 +3,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated, IsAuthenticate
 from .models import Task, Subscription
 from .serializers import TaskSerializer, SubscriptionSerializer
 from rest_framework.response import Response
-from rest_framework import status
+
 from .throttles import *
 
 class SubscriptionViewSet(viewsets.ModelViewSet):
@@ -51,6 +51,30 @@ class TodoViewset(viewsets.ModelViewSet):
     serializer_class = TaskSerializer
     permission_classes = [AllowAny]
     throttle_classes = [BasicUserThrottle, AdvanceUserThrottle, PremiumUserThrottle]
+    
+    def get_permissions(self):
+        if self.action == 'create':
+            return [AllowAny()]
+        elif self.action == 'list':
+            return [IsAuthenticated()]
+        else:
+            return super().get_permissions()
+    
+    def get_queryset(self):
+        if self.request.user.is_authenticated:
+            return Task.objects.filter(user=self.request.user)
+        else:
+            
+            return Task.objects.none()
+        
+    def create(self, request, *args, **kwargs):
+        if not self.request.user.is_authenticated:
+            
+            return Response({'detail': 'Authentication required to create tasks.'})
+        
+        return super().create(request, *args, **kwargs)
+
+
 
     def get_throttles(self):
         if self.request.user.is_authenticated:
@@ -68,27 +92,9 @@ class TodoViewset(viewsets.ModelViewSet):
             self.throttle_classes = [AnonUserThrottle]
             return super().get_throttles()
         
-    def get_permissions(self):
-        if self.request.user.is_authenticated:
-            return [IsAuthenticated()]
-        else:
-            return [AllowAny()]
+
           
-    def get_queryset(self):
-        if self.request.user.is_authenticated:
-            return Task.objects.filter(user=self.request.user)
-        else:
-            
-            return Task.objects.none()
-        
-    def create(self, request, *args, **kwargs):
-        if not self.request.user.is_authenticated:
-            
-            return Response({'detail': 'Authentication required to create tasks.'})
-        
-        return super().create(request, *args, **kwargs)
-
-
+    
 
 
 

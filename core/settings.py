@@ -52,7 +52,7 @@ INSTALLED_APPS = [
     
 ]
 
-# AUTH_USER_MODEL = 'todoapp.UserProfile'
+
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -152,3 +152,4 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+ALLOWED_HOSTS = ['*']

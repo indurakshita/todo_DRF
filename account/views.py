@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from rest_framework import serializers
 from .serializers import UserRegistrationSerializer
 from rest_framework.authtoken.models import Token
-from todoapp.throttles import *
+
 from .serializers import UserRegistrationSerializer
 
 
@@ -40,16 +40,20 @@ def generate_token_for_user(user):
 
 class CustomLoginView(APIView):
     permission_classes = [AllowAny]
+    
     def get(self, request):
-        return render(request, 'login.html')
-
+        if request.user.is_authenticated:
+            return redirect('/api/todo/')
+        else: 
+            return render(request, 'login.html')
+        
     def post(self, request):
         token = request.data.get('token')
         if token:
             try:
                 user = Token.objects.get(key=token).user
                 login(request, user)
-                return Response({"detail": "Login successful"}, status=status.HTTP_200_OK)
+                return Response({"detail": "Login successful", "token": token}, status=status.HTTP_200_OK)
             except Token.DoesNotExist:
                 return Response({"detail": "Invalid or expired token"}, status=status.HTTP_401_UNAUTHORIZED)
         else:
@@ -61,19 +65,14 @@ class CustomLoginView(APIView):
                 token = generate_token_for_user(user)
                 login(request, user)
                 return redirect('/api/todo/')
-                
             else:
                 return Response({"detail": "Invalid username or password"}, status=status.HTTP_401_UNAUTHORIZED)
 
 
-
 class LogoutView(APIView):
-   
     def get(self, request):
         return render(request, 'logout.html')
-
+    
     def post(self, request):
-        logout(request)
-        # if not request.accepted_renderer.format == 'json':
-        #     return redirect('login')
+        logout(request)    
         return redirect('login')

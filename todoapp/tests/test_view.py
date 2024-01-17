@@ -99,8 +99,8 @@ def test_todo_create_unauthenticated(api_client):
 def test_task_list_anonymous(api_client):
     url = reverse('task-list')
     response = api_client.get(url)
-    print(response.status_code)
-    assert response.status_code == status.HTTP_200_OK
+    
+    assert response.status_code == status.HTTP_403_FORBIDDEN
     
 
 @pytest.mark.django_db

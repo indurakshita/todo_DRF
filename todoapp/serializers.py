@@ -28,8 +28,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         fields = '__all__'
         
     def get_user(self, obj):
-   
-            return obj.user.username if obj.user else None
+        return obj.user.username if obj.user else None
     
  
    

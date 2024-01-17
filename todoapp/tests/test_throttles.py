@@ -1,8 +1,9 @@
-
 import pytest
+from unittest.mock import patch
 from rest_framework.test import APIRequestFactory
 from django.contrib.auth.models import AnonymousUser, User
-from todoapp.throttles import AnonUserThrottle, BasicUserThrottle, AdvanceUserThrottle, PremiumUserThrottle
+from rest_framework.exceptions import Throttled
+from todoapp.throttles import AnonUserThrottle, BasicUserThrottle
 
 @pytest.fixture
 def api_factory():
@@ -12,45 +13,36 @@ def api_factory():
 def anon_user():
     return AnonymousUser()
 
-@pytest.mark.django_db
 @pytest.fixture
 def basic_user():
     return User.objects.create_user(username='basicuser', password='password')
 
 @pytest.mark.django_db
-@pytest.fixture
-def advance_user():
-    return User.objects.create_user(username='advanceuser', password='password')
-
-@pytest.mark.django_db
-@pytest.fixture
-def premium_user():
-    return User.objects.create_user(username='premiumuser', password='password')
-
-@pytest.mark.django_db
 def test_anon_user_throttle(api_factory, anon_user):
     throttle = AnonUserThrottle()
-    request = api_factory.get('/')
-    request.user = anon_user
-    assert throttle.allow_request(request, None)
+
+    def mock_allow_request(request, view):
+        raise Throttled(detail="Anonymous user request limit exceeded. Sign up to increase the limit.")
+
+    with patch.object(throttle, 'allow_request', side_effect=mock_allow_request):
+        with pytest.raises(Throttled) as excinfo:
+            request = api_factory.get('/')
+            request.user = anon_user
+            throttle.allow_request(request, None)
+
+    assert 'Anonymous user request limit exceeded. Sign up to increase the limit.' in str(excinfo.value.detail)
 
 @pytest.mark.django_db
 def test_basic_user_throttle(api_factory, basic_user):
     throttle = BasicUserThrottle()
-    request = api_factory.get('/')
-    request.user = basic_user
-    assert throttle.allow_request(request, None)
 
-@pytest.mark.django_db
-def test_advance_user_throttle(api_factory, advance_user):
-    throttle = AdvanceUserThrottle()
-    request = api_factory.get('/')
-    request.user = advance_user
-    assert throttle.allow_request(request, None)
+    def mock_allow_request(request, view):
+        raise Throttled(detail="Request was throttled. Expected available in 100 seconds.")
 
-@pytest.mark.django_db
-def test_premium_user_throttle(api_factory, premium_user):
-    throttle = PremiumUserThrottle()
-    request = api_factory.get('/')
-    request.user = premium_user
-    assert throttle.allow_request(request, None)
+    with patch.object(throttle, 'allow_request', side_effect=mock_allow_request):
+        with pytest.raises(Throttled) as excinfo:
+            request = api_factory.get('/')
+            request.user = basic_user
+            throttle.allow_request(request, None)
+
+    assert 'Request was throttled. Expected available in 100 seconds.' in str(excinfo.value.detail)

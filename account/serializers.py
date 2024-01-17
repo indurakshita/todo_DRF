@@ -1,7 +1,9 @@
-from django.contrib.auth.models import User
 from rest_framework import serializers
-from django.core.exceptions import ValidationError
+from django.contrib.auth.models import User
+from django.contrib.auth import authenticate
 
+
+  
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True)
 
@@ -16,9 +18,8 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         if not value.isalnum():
             raise serializers.ValidationError("Username must contain only alphanumeric characters.")
 
-        if User.objects.filter(username__iexact=value).exists():
+        if User.objects.filter(username=value).exists():
             raise serializers.ValidationError("This username is already taken. Please choose another one.")
-
         return value
 
     def create(self, validated_data):
@@ -28,7 +29,18 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         )
         return user
 
-
 class CustomLoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        username = data.get('username')
+        password = data.get('password')
+
+        user = authenticate(username=username, password=password)
+
+        if not user or not user.is_active:
+            raise serializers.ValidationError("Invalid login credentials.")
+
+        data['user'] = user
+        return data
